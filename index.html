@@ -18,41 +18,48 @@
     const { useState, useEffect } = React;
 
     function App() {
-      const [activeTab, setActiveTab] = useState('todo'); // todo, wishlist, diary
+      const [activeTab, setActiveTab] = useState('mission'); // mission, bucket, diary, calendar
 
-      // 1. 상태 관리 (LocalStorage 연동)
-      const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('my_todos')) || []);
-      const [wishes, setWishes] = useState(() => JSON.parse(localStorage.getItem('my_wishes')) || []);
+      // --- 1. 상태 관리 (LocalStorage 연동) ---
+      const [missions, setMissions] = useState(() => JSON.parse(localStorage.getItem('my_missions')) || []);
+      const [buckets, setBuckets] = useState(() => JSON.parse(localStorage.getItem('my_buckets')) || []);
       const [diaries, setDiaries] = useState(() => JSON.parse(localStorage.getItem('my_diaries')) || []);
 
-      // 입력 폼 상태들
-      const [todoInput, setTodoInput] = useState('');
-      const [wishInput, setWishInput] = useState({ name: '', price: '', link: '' });
+      // 폼 입력 상태
+      const [missionInput, setMissionInput] = useState({ text: '', deadline: new Date().toISOString().substring(0, 10) });
+      const [bucketInput, setBucketInput] = useState({ name: '', price: '', link: '' });
       const [diaryInput, setDiaryInput] = useState({ title: '', content: '', mood: '😊', date: new Date().toISOString().substring(0, 10) });
 
+      // 캘린더 관련 상태
+      const [currentMonth, setCurrentMonth] = useState(new Date());
+      const [selectedDateDiaries, setSelectedDateDiaries] = useState(null); // 모달에 띄울 일기들
+
       // LocalStorage 자동 저장
-      useEffect(() => { localStorage.setItem('my_todos', JSON.stringify(todos)); }, [todos]);
-      useEffect(() => { localStorage.setItem('my_wishes', JSON.stringify(wishes)); }, [wishes]);
+      useEffect(() => { localStorage.setItem('my_missions', JSON.stringify(missions)); }, [missions]);
+      useEffect(() => { localStorage.setItem('my_buckets', JSON.stringify(buckets)); }, [buckets]);
       useEffect(() => { localStorage.setItem('my_diaries', JSON.stringify(diaries)); }, [diaries]);
 
-      // --- [1. 할 일 핸들러] ---
-      const addTodo = (e) => {
+      // --- [1. 미션 핸들러] ---
+      const addMission = (e) => {
         e.preventDefault();
-        if (!todoInput.trim()) return;
-        setTodos([{ id: Date.now(), text: todoInput, done: false }, ...todos]);
-        setTodoInput('');
+        if (!missionInput.text.trim()) return;
+        setMissions([{ id: Date.now(), text: missionInput.text, deadline: missionInput.deadline, done: false }, ...missions]);
+        setMissionInput({ ...missionInput, text: '' });
       };
-      const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
-      const deleteTodo = (id) => setTodos(todos.filter(t => t.id !== id));
+      const toggleMission = (id) => setMissions(missions.map(m => m.id === id ? { ...m, done: !m.done } : m));
+      const deleteMission = (id) => setMissions(missions.filter(m => m.id !== id));
 
-      // --- [2. 위시리스트 핸들러] ---
-      const addWish = (e) => {
+      const activeMissions = missions.filter(m => !m.done);
+      const completedMissions = missions.filter(m => m.done);
+
+      // --- [2. 버킷리스트 핸들러] ---
+      const addBucket = (e) => {
         e.preventDefault();
-        if (!wishInput.name.trim()) return;
-        setWishes([{ id: Date.now(), ...wishInput }, ...wishes]);
-        setWishInput({ name: '', price: '', link: '' });
+        if (!bucketInput.name.trim()) return;
+        setBuckets([{ id: Date.now(), ...bucketInput }, ...buckets]);
+        setBucketInput({ name: '', price: '', link: '' });
       };
-      const deleteWish = (id) => setWishes(wishes.filter(w => w.id !== id));
+      const deleteBucket = (id) => setBuckets(buckets.filter(b => b.id !== id));
 
       // --- [3. 일기장 핸들러] ---
       const addDiary = (e) => {
@@ -60,128 +67,177 @@
         if (!diaryInput.title.trim() || !diaryInput.content.trim()) return;
         setDiaries([{ id: Date.now(), ...diaryInput }, ...diaries]);
         setDiaryInput({ title: '', content: '', mood: '😊', date: new Date().toISOString().substring(0, 10) });
+        
+        // 작성 완료 알림
+        alert("작성이 완료되었습니다!");
       };
-      const deleteDiary = (id) => setDiaries(diaries.filter(d => d.id !== id));
+
+      // --- [4. 캘린더 생성 로직] ---
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      const firstDayOfMonth = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+      const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+      // 캘린더 셀 클릭 시 일기 확인
+      const handleDateClick = (day) => {
+        const formattedMonth = (month + 1).toString().padStart(2, '0');
+        const formattedDay = day.toString().padStart(2, '0');
+        const dateString = `${year}-${formattedMonth}-${formattedDay}`;
+        
+        const diariesForDay = diaries.filter(d => d.date === dateString);
+        if (diariesForDay.length > 0) {
+          setSelectedDateDiaries({ date: dateString, entries: diariesForDay });
+        }
+      };
 
       return (
         <div className="max-w-2xl mx-auto p-4 space-y-6">
-          {/* 헤더 */}
+          {/* 상단 헤더 */}
           <header className="text-center pt-6 pb-2">
-            <h1 className="text-2xl font-bold text-stone-800">✨ My Daily Dashboard</h1>
-            <p className="text-xs text-stone-500 mt-1">할 일, 사고 싶은 것, 오늘의 기록을 한곳에서</p>
+            <h1 className="text-2xl font-bold text-stone-800">My Daily Dashboard</h1>
+            <p className="text-xs text-stone-500 mt-1">목표와 기록을 깔끔하게 관리하세요</p>
           </header>
 
-          {/* 3개 탭 버튼 */}
+          {/* 탭 버튼 (아이콘 및 괄호 제거) */}
           <nav className="flex bg-stone-200/70 p-1 rounded-2xl">
-            <button
-              onClick={() => setActiveTab('todo')}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                activeTab === 'todo' ? 'bg-white text-stone-800 shadow-sm font-bold' : 'text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              ✅ 할 일 ({todos.filter(t => !t.done).length})
-            </button>
-            <button
-              onClick={() => setActiveTab('wishlist')}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                activeTab === 'wishlist' ? 'bg-white text-stone-800 shadow-sm font-bold' : 'text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              🎁 위시리스트 ({wishes.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('diary')}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                activeTab === 'diary' ? 'bg-white text-stone-800 shadow-sm font-bold' : 'text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              📖 일기장 ({diaries.length})
-            </button>
+            {['Mission', 'Bucket List', 'Diary', 'Calendar'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab.toLowerCase())}
+                className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-all ${
+                  activeTab === tab.toLowerCase().replace(' ', '') || (activeTab === 'bucketlist' && tab === 'Bucket List') || activeTab === tab.toLowerCase()
+                    ? 'bg-white text-stone-800 shadow-sm font-bold'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
           </nav>
 
-          {/* 탭 1: 해야 할 일 (To-Do) */}
-          {activeTab === 'todo' && (
-            <div className="space-y-4">
-              <form onSubmit={addTodo} className="flex gap-2">
+          {/* ---------------- 탭 1: Mission ---------------- */}
+          {activeTab === 'mission' && (
+            <div className="space-y-6">
+              {/* 작성 폼 */}
+              <form onSubmit={addMission} className="bg-white p-4 rounded-2xl shadow-sm border border-stone-200 flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
-                  placeholder="오늘 해야 할 일을 입력하세요..."
-                  value={todoInput}
-                  onChange={(e) => setTodoInput(e.target.value)}
-                  className="flex-1 px-4 py-2.5 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 bg-white"
+                  placeholder="새로운 미션 입력..."
+                  value={missionInput.text}
+                  onChange={(e) => setMissionInput({ ...missionInput, text: e.target.value })}
+                  className="flex-1 px-4 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-500"
                 />
-                <button type="submit" className="px-5 py-2.5 bg-stone-800 text-white text-sm font-medium rounded-xl hover:bg-stone-700">
-                  추가
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={missionInput.deadline}
+                    onChange={(e) => setMissionInput({ ...missionInput, deadline: e.target.value })}
+                    className="px-3 py-2 text-sm border border-stone-200 rounded-xl"
+                  />
+                  <button type="submit" className="px-5 py-2 bg-stone-800 text-white text-sm font-medium rounded-xl hover:bg-stone-700">
+                    추가
+                  </button>
+                </div>
               </form>
 
+              {/* 진행 중인 미션 (Active) */}
               <div className="space-y-2">
-                {todos.length === 0 && <p className="text-center py-8 text-xs text-stone-400">등록된 할 일이 없습니다.</p>}
-                {todos.map(t => (
-                  <div key={t.id} className="bg-white p-3.5 rounded-xl border border-stone-100 flex items-center justify-between shadow-sm">
-                    <label className="flex items-center space-x-3 cursor-pointer">
+                <h3 className="text-sm font-bold text-stone-700 border-b pb-2 mb-3">진행 중인 미션</h3>
+                {activeMissions.length === 0 && <p className="text-xs text-stone-400 py-2">진행 중인 미션이 없습니다.</p>}
+                {activeMissions.map(m => (
+                  <div key={m.id} className="bg-white p-3.5 rounded-xl border border-stone-100 flex items-center justify-between shadow-sm">
+                    <label className="flex items-center space-x-3 cursor-pointer flex-1">
                       <input
                         type="checkbox"
-                        checked={t.done}
-                        onChange={() => toggleTodo(t.id)}
-                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                        checked={m.done}
+                        onChange={() => toggleMission(m.id)}
+                        className="w-4 h-4 rounded text-stone-800 focus:ring-stone-800"
                       />
-                      <span className={`text-sm ${t.done ? 'line-through text-stone-400' : 'text-stone-700'}`}>{t.text}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-stone-800">{m.text}</span>
+                        <span className="text-xs text-stone-400">기한: {m.deadline}</span>
+                      </div>
                     </label>
-                    <button onClick={() => deleteTodo(t.id)} className="text-xs text-rose-400 hover:text-rose-600">삭제</button>
+                    <button onClick={() => deleteMission(m.id)} className="text-xs text-rose-400 hover:text-rose-600 ml-4">삭제</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* 완료된 미션 공간 (Completed) */}
+              <div className="space-y-2 pt-4">
+                <h3 className="text-sm font-bold text-stone-400 border-b pb-2 mb-3">완료된 미션</h3>
+                {completedMissions.length === 0 && <p className="text-xs text-stone-400 py-2">아직 완료된 미션이 없습니다.</p>}
+                {completedMissions.map(m => (
+                  <div key={m.id} className="bg-stone-100 p-3.5 rounded-xl border border-stone-200 flex items-center justify-between opacity-70">
+                    <label className="flex items-center space-x-3 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={m.done}
+                        onChange={() => toggleMission(m.id)}
+                        className="w-4 h-4 rounded text-stone-800 focus:ring-stone-800"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm text-stone-500 line-through">{m.text}</span>
+                        <span className="text-xs text-stone-400">기한: {m.deadline}</span>
+                      </div>
+                    </label>
+                    <button onClick={() => deleteMission(m.id)} className="text-xs text-rose-400 hover:text-rose-600 ml-4">삭제</button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* 탭 2: 위시리스트 (Wishlist) */}
-          {activeTab === 'wishlist' && (
+          {/* ---------------- 탭 2: Bucket List ---------------- */}
+          {(activeTab === 'bucketlist' || activeTab === 'bucket') && (
             <div className="space-y-4">
-              <form onSubmit={addWish} className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm space-y-3">
+              <form onSubmit={addBucket} className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm space-y-3">
                 <input
                   type="text"
-                  placeholder="갖고 싶은 아이템 이름 *"
-                  value={wishInput.name}
-                  onChange={(e) => setWishInput({ ...wishInput, name: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  placeholder="이루고 싶은 목표나 아이템 이름"
+                  value={bucketInput.name}
+                  onChange={(e) => setBucketInput({ ...bucketInput, name: e.target.value })}
+                  className="w-full px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-500"
                 />
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="예상 가격 (예: 35,000원)"
-                    value={wishInput.price}
-                    onChange={(e) => setWishInput({ ...wishInput, price: e.target.value })}
-                    className="flex-1 px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="관련 비용 (예: 50,000원)"
+                    value={bucketInput.price}
+                    onChange={(e) => setBucketInput({ ...bucketInput, price: e.target.value })}
+                    className="flex-1 px-3.5 py-2 text-sm border border-stone-200 rounded-xl"
                   />
                   <input
                     type="url"
-                    placeholder="구매 링크 (선택)"
-                    value={wishInput.link}
-                    onChange={(e) => setWishInput({ ...wishInput, link: e.target.value })}
-                    className="flex-1 px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="관련 링크 URL (선택)"
+                    value={bucketInput.link}
+                    onChange={(e) => setBucketInput({ ...bucketInput, link: e.target.value })}
+                    className="flex-1 px-3.5 py-2 text-sm border border-stone-200 rounded-xl"
                   />
                 </div>
                 <button type="submit" className="w-full py-2 bg-stone-800 text-white text-xs font-semibold rounded-xl hover:bg-stone-700">
-                  위시리스트에 담기
+                  버킷리스트에 추가
                 </button>
               </form>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {wishes.length === 0 && <p className="col-span-full text-center py-8 text-xs text-stone-400">위시리스트가 비어있습니다.</p>}
-                {wishes.map(w => (
-                  <div key={w.id} className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm flex flex-col justify-between">
+                {buckets.length === 0 && <p className="col-span-full text-center py-8 text-xs text-stone-400">버킷리스트가 비어있습니다.</p>}
+                {buckets.map(b => (
+                  <div key={b.id} className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm flex flex-col justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-stone-800">{w.name}</h4>
-                      {w.price && <p className="text-xs font-semibold text-amber-700 mt-1">{w.price}</p>}
+                      <h4 className="font-bold text-sm text-stone-800">{b.name}</h4>
+                      {b.price && <p className="text-xs font-medium text-stone-500 mt-1">{b.price}</p>}
                     </div>
                     <div className="flex justify-between items-center mt-3 pt-2 border-t border-stone-50">
-                      {w.link ? (
-                        <a href={w.link} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
-                          🔗 링크 이동
+                      {b.link ? (
+                        <a href={b.link} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
+                          🔗 관련 링크
                         </a>
                       ) : <span />}
-                      <button onClick={() => deleteWish(w.id)} className="text-xs text-rose-400 hover:text-rose-600">삭제</button>
+                      <button onClick={() => deleteBucket(b.id)} className="text-xs text-rose-400 hover:text-rose-600">삭제</button>
                     </div>
                   </div>
                 ))}
@@ -189,21 +245,21 @@
             </div>
           )}
 
-          {/* 탭 3: 일기장 (Diary) */}
+          {/* ---------------- 탭 3: Diary (작성 폼) ---------------- */}
           {activeTab === 'diary' && (
             <div className="space-y-4">
-              <form onSubmit={addDiary} className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm space-y-3">
+              <form onSubmit={addDiary} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4">
                 <div className="flex gap-2">
                   <input
                     type="date"
                     value={diaryInput.date}
                     onChange={(e) => setDiaryInput({ ...diaryInput, date: e.target.value })}
-                    className="border border-stone-200 rounded-xl p-2 text-xs"
+                    className="border border-stone-200 rounded-xl p-2 text-sm"
                   />
                   <select
                     value={diaryInput.mood}
                     onChange={(e) => setDiaryInput({ ...diaryInput, mood: e.target.value })}
-                    className="border border-stone-200 rounded-xl p-2 text-xs bg-white"
+                    className="border border-stone-200 rounded-xl p-2 text-sm bg-white"
                   >
                     <option value="😊">😊 기쁨</option>
                     <option value="🎉">🎉 축하</option>
@@ -214,38 +270,101 @@
                 </div>
                 <input
                   type="text"
-                  placeholder="일기 제목"
+                  placeholder="일기 제목을 적어주세요"
                   value={diaryInput.title}
                   onChange={(e) => setDiaryInput({ ...diaryInput, title: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  className="w-full px-3.5 py-2.5 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-500"
                 />
                 <textarea
-                  rows="3"
-                  placeholder="오늘 하루는 어땠나요?"
+                  rows="6"
+                  placeholder="오늘 하루는 어땠나요? 기록을 남겨보세요..."
                   value={diaryInput.content}
                   onChange={(e) => setDiaryInput({ ...diaryInput, content: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 resize-none"
+                  className="w-full px-3.5 py-3 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-500 resize-none"
                 />
-                <button type="submit" className="w-full py-2 bg-stone-800 text-white text-xs font-semibold rounded-xl hover:bg-stone-700">
-                  일기 저장하기
+                <button type="submit" className="w-full py-3 bg-stone-800 text-white text-sm font-semibold rounded-xl hover:bg-stone-700">
+                  작성 완료 (캘린더에 저장)
                 </button>
               </form>
+            </div>
+          )}
 
-              <div className="space-y-3">
-                {diaries.length === 0 && <p className="text-center py-8 text-xs text-stone-400">작성된 일기가 없습니다.</p>}
-                {diaries.map(d => (
-                  <div key={d.id} className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm space-y-1">
-                    <div className="flex justify-between items-center text-xs text-stone-400">
-                      <span>{d.date} {d.mood}</span>
-                      <button onClick={() => deleteDiary(d.id)} className="text-rose-400 hover:text-rose-600">삭제</button>
-                    </div>
-                    <h3 className="font-bold text-stone-800 text-sm">{d.title}</h3>
-                    <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-wrap">{d.content}</p>
-                  </div>
+          {/* ---------------- 탭 4: Calendar (일기 조회) ---------------- */}
+          {activeTab === 'calendar' && (
+            <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+              {/* 달력 헤더 */}
+              <div className="flex justify-between items-center mb-4">
+                <button onClick={prevMonth} className="p-2 text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg">&lt;</button>
+                <h2 className="text-lg font-bold text-stone-800">{year}년 {month + 1}월</h2>
+                <button onClick={nextMonth} className="p-2 text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg">&gt;</button>
+              </div>
+
+              {/* 달력 요일 */}
+              <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                  <div key={day} className="text-xs font-bold text-stone-400 py-1">{day}</div>
                 ))}
+              </div>
+
+              {/* 달력 날짜 그리드 */}
+              <div className="grid grid-cols-7 gap-1">
+                {/* 빈 칸 */}
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                  <div key={`empty-${i}`} className="p-2"></div>
+                ))}
+                
+                {/* 날짜 셀 */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const formattedMonth = (month + 1).toString().padStart(2, '0');
+                  const formattedDay = day.toString().padStart(2, '0');
+                  const dateString = `${year}-${formattedMonth}-${formattedDay}`;
+                  
+                  // 해당 날짜에 쓰인 일기가 있는지 확인
+                  const hasDiary = diaries.some(d => d.date === dateString);
+
+                  return (
+                    <div 
+                      key={day} 
+                      onClick={() => handleDateClick(day)}
+                      className={`h-16 flex flex-col items-center p-1 rounded-xl border cursor-pointer transition-all ${
+                        hasDiary 
+                          ? 'border-stone-300 bg-stone-50 hover:bg-stone-100 hover:shadow-sm' 
+                          : 'border-transparent hover:bg-stone-50'
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-stone-700">{day}</span>
+                      {/* 일기가 있으면 점 표시 */}
+                      {hasDiary && <div className="mt-1 w-2 h-2 bg-stone-800 rounded-full"></div>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
+          
+          {/* 달력에서 날짜 클릭 시 나타나는 일기 상세 모달 */}
+          {selectedDateDiaries && (
+            <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl space-y-4">
+                <div className="flex justify-between items-center border-b border-stone-100 pb-3">
+                  <h3 className="font-bold text-lg text-stone-800">{selectedDateDiaries.date} 기록</h3>
+                  <button onClick={() => setSelectedDateDiaries(null)} className="text-stone-400 hover:text-stone-600 font-bold text-xl">&times;</button>
+                </div>
+                
+                <div className="space-y-4">
+                  {selectedDateDiaries.entries.map(d => (
+                    <div key={d.id} className="bg-stone-50 p-4 rounded-2xl space-y-2">
+                      <div className="text-2xl">{d.mood}</div>
+                      <h4 className="font-bold text-stone-800">{d.title}</h4>
+                      <p className="text-sm text-stone-600 whitespace-pre-wrap">{d.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     }
